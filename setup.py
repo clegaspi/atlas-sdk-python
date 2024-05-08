@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
-from atlas_sdk_python import __version__
+from atlas_sdk import __version__
 
 setup(
     name="atlas-sdk-python",
