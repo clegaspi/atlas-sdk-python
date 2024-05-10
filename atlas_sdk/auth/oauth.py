@@ -1,17 +1,17 @@
+from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from time import sleep
 from urllib.parse import urlencode
+from typing import TYPE_CHECKING
 
 import jwt
 import requests
 
 from atlas_sdk import __version__
+from atlas_sdk.auth.profile import Profile, Service
 
 AUTH_EXPIRED_ERROR = "DEVICE_AUTHORIZATION_EXPIRED"
-# Taken from Atlas CLI
-CLOUD_CLIENT_ID = "0oabtxactgS3gHIR0297"
-GOVCLOUD_CLIENT_ID = "0oabtyfelbTBdoucy297"
 
 
 class TimeoutError(BaseException):
@@ -76,10 +76,21 @@ class OAuthConfig:
     GOVCLOUD_API = "https://cloud.mongodbgov.com/"
     DEVICE_BASE_PATH = "api/private/unauth/account/device"
     DEFAULT_USER_AGENT = f"atlas-sdk-python/{__version__}"
+    # Taken from Atlas CLI
+    CLOUD_CLIENT_ID = "0oabtxactgS3gHIR0297"
+    GOVCLOUD_CLIENT_ID = "0oabtyfelbTBdoucy297"
 
-    def __init__(self, profile, user_agent: str = None) -> None:
-        self._profile = profile
-        self._token = None
+    def __init__(self, profile: Profile, user_agent: str = None) -> None:
+        self.profile = profile
+        if self.profile.service == Service.CLOUD:
+            self.base_url = self.CLOUD_API
+            self.client_id = self.CLOUD_CLIENT_ID
+        elif self.profile.service == Service.GOVCLOUD:
+            self.base_url = self.GOVCLOUD_API
+            self.client_id = self.GOVCLOUD_CLIENT_ID
+        else:
+            raise ValueError(f"Unexpected value for service: {self.profile.service}")
+
         if user_agent:
             self.user_agent = user_agent
         else:
@@ -102,7 +113,7 @@ class OAuthConfig:
     def _do_request(
         self, endpoint: str, body: dict, method: str = "post"
     ) -> requests.Response:
-        url = self.CLOUD_API + self.DEVICE_BASE_PATH + f"/{endpoint}"
+        url = self.base_url + self.DEVICE_BASE_PATH + f"/{endpoint}"
         return getattr(requests, method)(
             url,
             data=urlencode(body) if body else None,
@@ -114,7 +125,7 @@ class OAuthConfig:
         result = self._do_request(
             "authorize",
             {
-                "client_id": CLOUD_CLIENT_ID,
+                "client_id": self.client_id,
                 "scope": self._default_scopes,
             },
         )
@@ -127,7 +138,7 @@ class OAuthConfig:
         result = self._do_request(
             "token",
             {
-                "client_id": CLOUD_CLIENT_ID,
+                "client_id": self.client_id,
                 "device_code": device_code.device_code,
                 "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
             },
@@ -157,7 +168,7 @@ class OAuthConfig:
         result = self._do_request(
             "token",
             {
-                "client_id": CLOUD_CLIENT_ID,
+                "client_id": self.client_id,
                 "refresh_token": token.refresh_token,
                 "scope": self._default_scopes,
                 "grant_type": "refresh_token",
@@ -180,7 +191,7 @@ class OAuthConfig:
         result = self._do_request(
             "revoke",
             {
-                "client_id": CLOUD_CLIENT_ID,
+                "client_id": self.client_id,
                 "token": token_value,
                 "token_type_hint": token_type,
             },
