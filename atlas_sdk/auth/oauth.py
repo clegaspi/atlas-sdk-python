@@ -99,11 +99,13 @@ class OAuthConfig:
             ]
         )
 
-    def _do_request(self, endpoint: str, body: dict) -> requests.Response:
+    def _do_request(
+        self, endpoint: str, body: dict, method: str = "post"
+    ) -> requests.Response:
         url = self.CLOUD_API + self.DEVICE_BASE_PATH + f"/{endpoint}"
-        return requests.post(
+        return getattr(requests, method)(
             url,
-            data=urlencode(body),
+            data=urlencode(body) if body else None,
             headers=self._default_headers,
         )
 
