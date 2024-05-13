@@ -7,7 +7,7 @@ import tomlkit
 
 if TYPE_CHECKING:
     from atlas_sdk.auth.oauth import Token
-    from atlas_sdk.auth.apikey import ApiKey
+    from atlas_sdk.auth.apikey import ApiKeyConfig
 
 
 class Service(Enum):
@@ -21,7 +21,7 @@ class Profile:
     service: Service = Service.CLOUD
     org_id: str = None
     project_id: str = None
-    api_key: ApiKey = None
+    api_key: ApiKeyConfig = None
     token: Token = None
 
     @property
@@ -42,3 +42,7 @@ class Profile:
 
     def to_toml(self):
         pass
+
+    def __post_init__(self):
+        if self.token and self.api_key:
+            raise ValueError("Profile can only have one authentication method")

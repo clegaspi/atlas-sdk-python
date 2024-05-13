@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from time import sleep
 from urllib.parse import urlencode
 from typing import TYPE_CHECKING
+import webbrowser
 
 import jwt
 import requests
@@ -48,6 +49,12 @@ class Token:
     token_type: str
     expires_in: int
     issue_time: datetime = field(default_factory=datetime.now)
+    access_revoked: bool = False
+    refresh_revoked: bool = False
+
+    @property
+    def revoked(self):
+        return self.access_revoked or self.refresh_revoked
 
     @property
     def expiry(self):
@@ -55,7 +62,7 @@ class Token:
 
     @property
     def is_expired(self):
-        return datetime.now() > self.expiry
+        return self.revoked or datetime.now() > self.expiry
 
     @property
     def claims(self):
@@ -120,8 +127,25 @@ class OAuthConfig:
             headers=self._default_headers,
         )
 
+    def auth(self, open_browser: bool = False) -> Token:
+        if self.profile.token:
+            if not self.profile.token.is_expired:
+                return self.profile.token
+            return self.refresh_token(self.profile.token, reauth_if_expired=True)
+        code = self.request_code()
+
+        print(f"Navigate to {code.verification_uri} for authentication")
+        print(f"Enter the code {code.device_code} to authorize this client")
+
+        if open_browser:
+            webbrowser.open(code.verification_uri)
+
+        self.profile.token = self.poll_token(code)
+        username = self.profile.token.claims["sub"]
+        print(f"Successfully authenticated as {username}")
+        return self.profile.token
+
     def request_code(self) -> DeviceCode:
-        # Check profile for cloud or gov. Defaulting to cloud for now.
         result = self._do_request(
             "authorize",
             {
@@ -164,7 +188,7 @@ class OAuthConfig:
             device_code.sleep()
         raise TimeoutError("Timed out waiting for user to authenticate.")
 
-    def refresh_token(self, token: Token) -> Token:
+    def refresh_token(self, token: Token, reauth_if_expired: bool = True) -> Token:
         result = self._do_request(
             "token",
             {
@@ -176,9 +200,13 @@ class OAuthConfig:
         )
 
         if not result.ok:
+            if reauth_if_expired:
+                print("Refresh token expired. Reauthentication required.")
+                return self.auth(open_browser=True)
             result.raise_for_status()
 
-        return Token(**result.json())
+        self.profile.token = Token(**result.json())
+        return self.profile.token
 
     def revoke_token(self, token: Token, token_type: str) -> bool:
         if token_type == "refresh":
@@ -199,6 +227,7 @@ class OAuthConfig:
 
         if not result.ok:
             result.raise_for_status()
+        token.revoked = True
         return True
 
     def get_registration_config(self):
