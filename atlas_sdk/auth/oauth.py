@@ -59,7 +59,7 @@ class Token:
 
     @property
     def expiry(self):
-        self.issue_time + timedelta(seconds=self.expires_in)
+        return self.issue_time + timedelta(seconds=self.expires_in)
 
     @property
     def is_expired(self):
