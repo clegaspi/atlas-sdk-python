@@ -36,8 +36,12 @@ class ApiClient:
         self._auth_config.auth()
         return self._auth_config.get_requests_config()
 
+    @property
+    def base_url(self):
+        return self._auth_config.base_url
+
     def test_auth(self, raise_error: bool = False):
-        result = self.get(self._auth_config.base_url + "api/atlas/v2")
+        result = self.get(self.base_url + "api/atlas/v2")
         if not result.ok:
             if raise_error:
                 result.raise_for_status()
