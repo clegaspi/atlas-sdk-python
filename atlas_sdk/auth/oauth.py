@@ -11,6 +11,7 @@ import requests
 
 from atlas_sdk import __version__
 from atlas_sdk.auth.profile import Profile, Service
+from atlas_sdk.auth.config import AuthConfig
 
 AUTH_EXPIRED_ERROR = "DEVICE_AUTHORIZATION_EXPIRED"
 
@@ -78,30 +79,20 @@ class RegistrationConfig:
     registration_url: str
 
 
-class OAuthConfig:
-    CLOUD_API = "https://cloud.mongodb.com/"
-    GOVCLOUD_API = "https://cloud.mongodbgov.com/"
+class OAuthConfig(AuthConfig):
     DEVICE_BASE_PATH = "api/private/unauth/account/device"
-    DEFAULT_USER_AGENT = f"atlas-sdk-python/{__version__}"
     # Taken from Atlas CLI
     CLOUD_CLIENT_ID = "0oabtxactgS3gHIR0297"
     GOVCLOUD_CLIENT_ID = "0oabtyfelbTBdoucy297"
 
     def __init__(self, profile: Profile, user_agent: str = None) -> None:
-        self.profile = profile
+        super().__init__(profile, user_agent)
         if self.profile.service == Service.CLOUD:
-            self.base_url = self.CLOUD_API
             self.client_id = self.CLOUD_CLIENT_ID
         elif self.profile.service == Service.GOVCLOUD:
-            self.base_url = self.GOVCLOUD_API
             self.client_id = self.GOVCLOUD_CLIENT_ID
         else:
             raise ValueError(f"Unexpected value for service: {self.profile.service}")
-
-        if user_agent:
-            self.user_agent = user_agent
-        else:
-            self.user_agent = self.DEFAULT_USER_AGENT
 
         self._default_headers = {
             "Content-Type": "application/x-www-form-urlencoded",
@@ -127,7 +118,7 @@ class OAuthConfig:
             headers=self._default_headers,
         )
 
-    def auth(self, open_browser: bool = False) -> Token:
+    def auth(self, open_browser: bool = True) -> Token:
         if self.profile.token:
             if not self.profile.token.is_expired:
                 return self.profile.token
@@ -135,7 +126,7 @@ class OAuthConfig:
         code = self.request_code()
 
         print(f"Navigate to {code.verification_uri} for authentication")
-        print(f"Enter the code {code.device_code} to authorize this client")
+        print(f"Enter the code {code.user_code} to authorize this client")
 
         if open_browser:
             webbrowser.open(code.verification_uri)
@@ -144,6 +135,11 @@ class OAuthConfig:
         username = self.profile.token.claims["sub"]
         print(f"Successfully authenticated as {username}")
         return self.profile.token
+
+    def get_requests_config(self) -> dict:
+        return {
+            "headers": {"Authorization": f"Bearer {self.profile.token.access_token}"}
+        }
 
     def request_code(self) -> DeviceCode:
         result = self._do_request(

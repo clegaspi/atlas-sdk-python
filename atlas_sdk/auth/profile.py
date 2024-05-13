@@ -7,12 +7,18 @@ import tomlkit
 
 if TYPE_CHECKING:
     from atlas_sdk.auth.oauth import Token
-    from atlas_sdk.auth.apikey import ApiKeyConfig
+    from atlas_sdk.auth.apikey import ApiKey
 
 
 class Service(Enum):
     CLOUD = "cloud"
     GOVCLOUD = "govcloud"
+
+    def __eq__(self, value: object) -> bool:
+        return super().__eq__(value)
+
+    def __hash__(self) -> int:
+        return hash(self.value)
 
 
 @dataclass
@@ -21,7 +27,7 @@ class Profile:
     service: Service = Service.CLOUD
     org_id: str = None
     project_id: str = None
-    api_key: ApiKeyConfig = None
+    api_key: ApiKey = None
     token: Token = None
 
     @property
