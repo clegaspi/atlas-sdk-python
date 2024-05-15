@@ -109,8 +109,8 @@ class OAuthConfig(AuthConfig):
             headers=self._default_headers,
         )
 
-    def auth(self, open_browser: bool = True) -> Token:
-        if self.profile.token:
+    def auth(self, open_browser: bool = True, force_reauth: bool = False) -> Token:
+        if not force_reauth and self.profile.token:
             if not self.profile.token.is_expired:
                 return self.profile.token
             return self.refresh_token(self.profile.token, reauth_if_expired=True)
@@ -175,25 +175,39 @@ class OAuthConfig(AuthConfig):
             device_code.sleep()
         raise TimeoutError("Timed out waiting for user to authenticate.")
 
-    def refresh_token(self, token: Token, reauth_if_expired: bool = True) -> Token:
-        result = self._do_request(
-            "token",
-            {
-                "client_id": self.client_id,
-                "refresh_token": token.refresh_token,
-                "scope": self._default_scopes,
-                "grant_type": "refresh_token",
-            },
-        )
+    def refresh_token(
+        self, token: Token, reauth_if_expired: bool = True
+    ) -> Token | None:
+        reauth_required = False
+        if token.refresh_revoked:
+            reauth_required = True
+        else:
+            result = self._do_request(
+                "token",
+                {
+                    "client_id": self.client_id,
+                    "refresh_token": token.refresh_token,
+                    "scope": self._default_scopes,
+                    "grant_type": "refresh_token",
+                },
+            )
 
-        if not result.ok:
+            if not result.ok:
+                if (
+                    result.status_code == 400
+                    and result.json().get("errorCode") == "INVALID_REFRESH_TOKEN"
+                ):
+                    reauth_required = True
+                else:
+                    result.raise_for_status()
+            else:
+                self.profile.token = Token(**result.json())
+                return self.profile.token
+        if reauth_required:
+            print("Refresh token expired. Reauthentication required.")
             if reauth_if_expired:
-                print("Refresh token expired. Reauthentication required.")
-                return self.auth(open_browser=True)
-            result.raise_for_status()
-
-        self.profile.token = Token(**result.json())
-        return self.profile.token
+                return self.auth(open_browser=True, force_reauth=True)
+        return None
 
     def revoke_token(self, token: Token, token_type: str) -> bool:
         if token_type == "refresh":
@@ -214,5 +228,8 @@ class OAuthConfig(AuthConfig):
 
         if not result.ok:
             result.raise_for_status()
-        token.revoked = True
+        if token_type == "refresh":
+            token.refresh_revoked = True
+        elif token_type == "access":
+            token.access_revoked = True
         return True
