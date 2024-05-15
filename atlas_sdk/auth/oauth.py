@@ -3,17 +3,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from time import sleep
 from urllib.parse import urlencode
-from typing import TYPE_CHECKING
 import webbrowser
 
 import jwt
 import requests
 
-from atlas_sdk import __version__
 from atlas_sdk.auth.profile import Profile, Service
 from atlas_sdk.auth.config import AuthConfig
-
-AUTH_EXPIRED_ERROR = "DEVICE_AUTHORIZATION_EXPIRED"
 
 
 class TimeoutError(BaseException):
@@ -72,11 +68,6 @@ class Token:
             self.access_token,
             options={"verify_signature": False},
         )
-
-
-@dataclass
-class RegistrationConfig:
-    registration_url: str
 
 
 class OAuthConfig(AuthConfig):
@@ -225,21 +216,3 @@ class OAuthConfig(AuthConfig):
             result.raise_for_status()
         token.revoked = True
         return True
-
-    def get_registration_config(self):
-        pass
-        """
-        // RegistrationConfig retrieves the config used for registration.
-        func (c Config) RegistrationConfig(ctx context.Context) (*RegistrationConfig, *core.Response, error) {
-            req, err := c.NewRequest(ctx, http.MethodGet, deviceBasePath+"/registration", url.Values{})
-            if err != nil {
-                return nil, nil, err
-            }
-            var rc *RegistrationConfig
-            resp, err := c.Do(ctx, req, &rc)
-            if err != nil {
-                return nil, resp, err
-            }
-            return rc, resp, err
-        }
-        """
