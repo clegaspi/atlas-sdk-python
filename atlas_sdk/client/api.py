@@ -51,13 +51,11 @@ class ApiClient:
         return True
 
     def request(self, method: str, url: str, **kwargs):
-        request_args = self._refresh_auth()
+        session = self._refresh_auth()
         # Merge headers, overriding default with those passed in
-        headers = request_args.get("headers", {})
-        request_args.update(kwargs)
-        headers.update(kwargs.get("headers", {}))
-        request_args["headers"] = headers
-        return self._auth_config.get_session().request(method, url, **request_args)
+        if "headers" in kwargs:
+            session.headers.update(kwargs.pop("headers"))
+        return session.request(method, url, **kwargs)
 
     def get(self, url: str, **kwargs):
         return self.request("get", url, **kwargs)
