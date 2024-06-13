@@ -2,6 +2,7 @@ from enum import Enum
 
 import requests
 
+from atlas_sdk.auth.config import AuthConfig
 from atlas_sdk.auth.profile import Profile
 from atlas_sdk.auth.oauth import OAuthConfig
 from atlas_sdk.auth.apikey import ApiKeyConfig
@@ -21,6 +22,7 @@ class ApiClient:
         if auth_type:
             auth_type = AuthType(auth_type)
         self.profile = profile
+        self._auth_config: AuthConfig
         if self.profile.api_key or auth_type == AuthType.API_KEY:
             self._auth_type = AuthType.API_KEY
             self._auth_config = ApiKeyConfig(self.profile)
@@ -34,14 +36,14 @@ class ApiClient:
 
     def _refresh_auth(self):
         self._auth_config.auth()
-        return self._auth_config.get_requests_config()
+        return self._auth_config.get_session()
 
     @property
     def base_url(self):
         return self._auth_config.base_url
 
     def test_auth(self, raise_error: bool = False):
-        result = self.get(self.base_url + "api/atlas/v2")
+        result = self.get(self.base_url + "api/atlas/v1.0")
         if not result.ok:
             if raise_error:
                 result.raise_for_status()
@@ -55,7 +57,7 @@ class ApiClient:
         request_args.update(kwargs)
         headers.update(kwargs.get("headers", {}))
         request_args["headers"] = headers
-        return requests.request(method, url, **request_args)
+        return self._auth_config.get_session().request(method, url, **request_args)
 
     def get(self, url: str, **kwargs):
         return self.request("get", url, **kwargs)
