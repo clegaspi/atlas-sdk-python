@@ -2,8 +2,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from atlas_sdk import __version__
+import requests
 
+from atlas_sdk import __version__
 from atlas_sdk.auth.profile import Profile, Service
 
 
@@ -19,6 +20,7 @@ class AuthConfig(ABC):
         self.profile = profile
         self.service = self.profile.service
         self.user_agent = user_agent or self.DEFAULT_USER_AGENT
+        self.session = None
 
     @property
     def base_url(self) -> str | None:
@@ -29,5 +31,5 @@ class AuthConfig(ABC):
         pass
 
     @abstractmethod
-    def get_requests_config(self) -> dict:
+    def get_session(self) -> requests.Session:
         pass

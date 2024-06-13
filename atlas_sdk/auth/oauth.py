@@ -7,6 +7,7 @@ import webbrowser
 
 import jwt
 import requests
+from requests import Session, Response
 
 from atlas_sdk.auth.profile import Profile, Service
 from atlas_sdk.auth.config import AuthConfig
@@ -99,9 +100,9 @@ class OAuthConfig(AuthConfig):
             ]
         )
 
-    def _do_request(
+    def _do_oauth_request(
         self, endpoint: str, body: dict, method: str = "post"
-    ) -> requests.Response:
+    ) -> Response:
         url = self.base_url + self.DEVICE_BASE_PATH + f"/{endpoint}"
         return getattr(requests, method)(
             url,
@@ -127,13 +128,20 @@ class OAuthConfig(AuthConfig):
         print(f"Successfully authenticated as {username}")
         return self.profile.token
 
-    def get_requests_config(self) -> dict:
-        return {
-            "headers": {"Authorization": f"Bearer {self.profile.token.access_token}"}
-        }
+    def get_session(self) -> Session:
+        if not self.session:
+            self.session = Session()
+            self.session.headers.update(
+                {
+                    "headers": {
+                        "Authorization": f"Bearer {self.profile.token.access_token}"
+                    }
+                }
+            )
+        return self.session
 
     def request_code(self) -> DeviceCode:
-        result = self._do_request(
+        result = self._do_oauth_request(
             "authorize",
             {
                 "client_id": self.client_id,
@@ -146,7 +154,7 @@ class OAuthConfig(AuthConfig):
         return DeviceCode(**result.json())
 
     def get_token(self, device_code: DeviceCode) -> Token | None:
-        result = self._do_request(
+        result = self._do_oauth_request(
             "token",
             {
                 "client_id": self.client_id,
@@ -182,7 +190,7 @@ class OAuthConfig(AuthConfig):
         if token.refresh_revoked:
             reauth_required = True
         else:
-            result = self._do_request(
+            result = self._do_oauth_request(
                 "token",
                 {
                     "client_id": self.client_id,
@@ -217,7 +225,7 @@ class OAuthConfig(AuthConfig):
         else:
             raise ValueError("token_type must be 'refresh' or 'access'")
 
-        result = self._do_request(
+        result = self._do_oauth_request(
             "revoke",
             {
                 "client_id": self.client_id,
