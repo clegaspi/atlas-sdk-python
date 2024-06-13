@@ -16,6 +16,6 @@ client_v2 = PublicV2ApiClient(profile, auth_type=AuthType.OAUTH)
 if client_v2.test_auth():
     print("Auth successful")
 
-response = client_v2.get(client.base_url + "api/atlas/v2")
+response = client_v2.get(client_v2.base_url + "api/atlas/v2")
 # response is a requests Response object
 ```
