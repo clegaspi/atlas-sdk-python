@@ -92,3 +92,11 @@ class PublicV2ApiClient(ApiClient):
         )
         kwargs["headers"]["Accept"] = kwargs["headers"].get("Accept", self.api_version)
         return super().request(method, url, **kwargs)
+
+    def test_auth(self, raise_error: bool = False):
+        result = self.get(self.base_url + "api/atlas/v2")
+        if not result.ok:
+            if raise_error:
+                result.raise_for_status()
+            return False
+        return True
