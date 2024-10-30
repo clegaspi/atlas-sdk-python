@@ -132,11 +132,7 @@ class OAuthConfig(AuthConfig):
         if not self.session:
             self.session = Session()
             self.session.headers.update(
-                {
-                    "headers": {
-                        "Authorization": f"Bearer {self.profile.token.access_token}"
-                    }
-                }
+                {"Authorization": f"Bearer {self.profile.token.access_token}"}
             )
         return self.session
 
