@@ -1,5 +1,3 @@
-from enum import Enum
-
 import requests
 
 from atlas_sdk.auth.config import AuthConfig
@@ -8,35 +6,33 @@ from atlas_sdk.auth.oauth import OAuthConfig
 from atlas_sdk.auth.apikey import ApiKeyConfig
 
 
-class AuthType(Enum):
-    API_KEY = "api_key"
-    OAUTH = "oauth"
+# Auth types
+API_KEY_AUTH = "apikey"
+OAUTH_AUTH = "oauth"
+
+auth_configs = {
+    API_KEY_AUTH: ApiKeyConfig,
+    OAUTH_AUTH: OAuthConfig,
+}
 
 
 class ApiClient:
     def __init__(
         self,
-        profile: Profile,
-        auth_type: AuthType | str = None,
+        auth_type: str,
+        profile: Profile = None,
+        user_agent: str = None,
+        **auth_config,
     ) -> None:
-        if auth_type:
-            auth_type = AuthType(auth_type)
-        self.profile = profile
-        self._auth_config: AuthConfig
-        if self.profile.api_key or auth_type == AuthType.API_KEY:
-            self._auth_type = AuthType.API_KEY
-            self._auth_config = ApiKeyConfig(self.profile)
-        elif self.profile.token or auth_type == AuthType.OAUTH:
-            self._auth_type = AuthType.OAUTH
-            self._auth_config = OAuthConfig(self.profile)
-        else:
-            raise ValueError(
-                "Profile did not contain a valid auth method and one was not specified."
-            )
-
-    def _refresh_auth(self):
-        self._auth_config.auth()
-        return self._auth_config.get_session()
+        self.profile = profile or Profile(name="default")
+        if auth_type not in auth_configs:
+            raise ValueError(f"Invalid auth method: {auth_type}")
+        self._auth_type = auth_type
+        self._session = requests.Session()
+        self._auth_config: AuthConfig = auth_configs[auth_type](
+            profile=profile, user_agent=user_agent, **auth_config
+        )
+        self._session.auth = self._auth_config
 
     @property
     def base_url(self):
@@ -51,11 +47,7 @@ class ApiClient:
         return True
 
     def request(self, method: str, url: str, **kwargs):
-        session = self._refresh_auth()
-        # Merge headers, overriding default with those passed in
-        if "headers" in kwargs:
-            session.headers.update(kwargs.pop("headers"))
-        return session.request(method, url, **kwargs)
+        return self._session.request(method, url, **kwargs)
 
     def get(self, url: str, **kwargs):
         return self.request("get", url, **kwargs)
@@ -74,16 +66,19 @@ class ApiClient:
 
 
 class PublicV2ApiClient(ApiClient):
-    ATLAS_ADMIN_API_VERSION = "application/vnd.atlas.2023-11-15+json"
+    ATLAS_ADMIN_API_VERSION = "application/vnd.atlas.2024-10-23+json"
 
     def __init__(
         self,
-        profile: Profile,
-        auth_type: AuthType | str = None,
-        api_version: str | None = None,
+        profile: Profile = None,
+        auth_type: str = None,
+        api_version: str = None,
+        user_agent: str = None,
+        **auth_config,
     ) -> None:
-        super().__init__(profile, auth_type)
+        super().__init__(auth_type, profile, user_agent, **auth_config)
         self.api_version = api_version or self.ATLAS_ADMIN_API_VERSION
+        self.api_base_url = super().base_url + "api/atlas/v2/"
 
     def request(self, method: str, url: str, **kwargs):
         kwargs["headers"] = kwargs.get("headers", {})
@@ -94,7 +89,7 @@ class PublicV2ApiClient(ApiClient):
         return super().request(method, url, **kwargs)
 
     def test_auth(self, raise_error: bool = False):
-        result = self.get(self.base_url + "api/atlas/v2")
+        result = self.get(self.api_base_url)
         if not result.ok:
             if raise_error:
                 result.raise_for_status()

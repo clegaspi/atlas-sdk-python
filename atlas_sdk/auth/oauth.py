@@ -7,7 +7,7 @@ import webbrowser
 
 import jwt
 import requests
-from requests import Session, Response
+from requests import Response, PreparedRequest
 
 from atlas_sdk.auth.profile import Profile, Service
 from atlas_sdk.auth.config import AuthConfig
@@ -77,8 +77,17 @@ class OAuthConfig(AuthConfig):
     CLOUD_CLIENT_ID = "0oabtxactgS3gHIR0297"
     GOVCLOUD_CLIENT_ID = "0oabtyfelbTBdoucy297"
 
-    def __init__(self, profile: Profile, user_agent: str = None) -> None:
-        super().__init__(profile, user_agent)
+    def __init__(
+        self,
+        profile: Profile = None,
+        service: str | Service = Service.CLOUD,
+        open_browser: bool = True,
+        user_agent: str = None,
+    ) -> None:
+        super().__init__(
+            profile or Profile("default", service=Service(service)),
+            user_agent,
+        )
         if self.profile.service == Service.CLOUD:
             self.client_id = self.CLOUD_CLIENT_ID
         elif self.profile.service == Service.GOVCLOUD:
@@ -86,6 +95,8 @@ class OAuthConfig(AuthConfig):
         else:
             raise ValueError(f"Unexpected value for service: {self.profile.service}")
 
+        self.open_browser = open_browser
+        self.username = None
         self._default_headers = {
             "Content-Type": "application/x-www-form-urlencoded",
             "Accept": "application/json",
@@ -110,7 +121,7 @@ class OAuthConfig(AuthConfig):
             headers=self._default_headers,
         )
 
-    def auth(self, open_browser: bool = True, force_reauth: bool = False) -> Token:
+    def auth(self, force_reauth: bool = False) -> Token:
         if not force_reauth and self.profile.token:
             if not self.profile.token.is_expired:
                 return self.profile.token
@@ -120,21 +131,18 @@ class OAuthConfig(AuthConfig):
         print(f"Navigate to {code.verification_uri} for authentication")
         print(f"Enter the code {code.user_code} to authorize this client")
 
-        if open_browser:
+        if self.open_browser:
             webbrowser.open(code.verification_uri)
 
         self.profile.token = self.poll_token(code)
-        username = self.profile.token.claims["sub"]
-        print(f"Successfully authenticated as {username}")
+        self.username = self.profile.token.claims["sub"]
+        print(f"Successfully authenticated as {self.username}")
         return self.profile.token
 
-    def get_session(self) -> Session:
-        if not self.session:
-            self.session = Session()
-            self.session.headers.update(
-                {"Authorization": f"Bearer {self.profile.token.access_token}"}
-            )
-        return self.session
+    def __call__(self, r: PreparedRequest) -> PreparedRequest:
+        token = self.auth()
+        r.headers["Authorization"] = f"Bearer {token.access_token}"
+        return r
 
     def request_code(self) -> DeviceCode:
         result = self._do_oauth_request(
@@ -210,7 +218,7 @@ class OAuthConfig(AuthConfig):
         if reauth_required:
             print("Refresh token expired. Reauthentication required.")
             if reauth_if_expired:
-                return self.auth(open_browser=True, force_reauth=True)
+                return self.auth(open_browser=self.open_browser, force_reauth=True)
         return None
 
     def revoke_token(self, token: Token, token_type: str) -> bool:

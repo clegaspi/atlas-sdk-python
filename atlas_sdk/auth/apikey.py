@@ -1,33 +1,29 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
-from requests import Session
+from requests import PreparedRequest
 from requests.auth import HTTPDigestAuth
 
-from atlas_sdk.auth.config import AuthConfig
-
-if TYPE_CHECKING:
-    from atlas_sdk.auth.profile import Profile
+from atlas_sdk.auth.config import AuthConfig, Service
+from atlas_sdk.auth.profile import Profile
 
 
 class ApiKeyConfig(AuthConfig):
     def __init__(
-        self, profile: Profile, api_key: ApiKey = None, user_agent: str | None = None
+        self,
+        profile: Profile = None,
+        service: str | Service = Service.CLOUD,
+        api_key: ApiKey = None,
+        user_agent: str | None = None,
     ) -> None:
-        super().__init__(profile, user_agent)
-        self.api_key = api_key or self.profile.api_key
-        self.profile.api_key = self.api_key
-        self.session = None
+        super().__init__(
+            profile or Profile("default", Service(service)), service, user_agent
+        )
+        self.profile.api_key = api_key or self.profile.api_key
 
-    def auth(self):
-        return self.api_key.as_requests_auth()
-
-    def get_session(self) -> Session:
-        if not self.session:
-            self.session = Session()
-            self.session.auth = self.auth()
-        return self.session
+    def __call__(self, r: PreparedRequest) -> PreparedRequest:
+        digest_auth = self.profile.api_key.as_requests_auth()
+        return digest_auth(r)
 
 
 @dataclass
