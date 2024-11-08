@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -19,6 +19,13 @@ class Service(Enum):
 
     def __hash__(self) -> int:
         return hash(self.value)
+
+
+CLI_CONFIG_PATH = {
+    "win": "%AppData/atlascli",
+    "macos": "/Users/%s/Library/Application Support/atlascli",
+    "linux": "$XDG_CONFIG_HOME/atlascli",
+}
 
 
 @dataclass
@@ -43,12 +50,8 @@ class Profile:
         return None
 
     @classmethod
-    def from_toml(cls, toml_data: dict):
+    def load_atlas_cli_config(cls):
         pass
 
-    def to_toml(self):
+    def write_atlas_cli_config(self):
         pass
-
-    def __post_init__(self):
-        if self.token and self.api_key:
-            raise ValueError("Profile can only have one authentication method")
