@@ -85,8 +85,9 @@ class OAuthConfig(AuthConfig):
         user_agent: str = None,
     ) -> None:
         super().__init__(
-            profile or Profile("default", service=Service(service)),
-            user_agent,
+            profile=profile or Profile("default", service=Service(service)),
+            service=Service(service),
+            user_agent=user_agent,
         )
         if self.profile.service == Service.CLOUD:
             self.client_id = self.CLOUD_CLIENT_ID

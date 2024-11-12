@@ -30,7 +30,7 @@ class ApiClient:
         self._auth_type = auth_type
         self._session = requests.Session()
         self._auth_config: AuthConfig = auth_configs[auth_type](
-            profile=profile, user_agent=user_agent, **auth_config
+            profile=self.profile, user_agent=user_agent, **auth_config
         )
         self._session.auth = self._auth_config
 
